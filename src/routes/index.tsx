@@ -2,7 +2,14 @@ import { useEffect, useRef, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Jar3D } from "@/components/jar-3d";
 import { Collection3DStage } from "@/components/collection-3d-stage";
-import { products, heroProduct, WHATSAPP_URL, INSTAGRAM_URL, LOCATION_URL } from "@/lib/products";
+import {
+  products,
+  heroProduct,
+  WHATSAPP_URL,
+  WHATSAPP_NUMBER,
+  INSTAGRAM_URL,
+  LOCATION_URL,
+} from "@/lib/products";
 import brandLogo from "@/assets/brand-logo.png";
 import indiraImg from "@/assets/indira.jpeg";
 import shilpaImg from "@/assets/shilpa.jpeg";
@@ -325,7 +332,7 @@ function Index() {
             <strong>Instagram ↗</strong>
           </a>
           <a className="contact-link" href={WHATSAPP_URL} target="_blank" rel="noreferrer">
-            <small>Ask or enquire · +91 77603 97903</small>
+            <small>Ask or enquire · {WHATSAPP_NUMBER}</small>
             <strong>WhatsApp ↗</strong>
           </a>
           <a className="contact-link" href={LOCATION_URL} target="_blank" rel="noreferrer">

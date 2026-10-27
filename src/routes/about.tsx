@@ -5,7 +5,7 @@ import indiraImg from "@/assets/indira.jpeg";
 import shilpaImg from "@/assets/shilpa.jpeg";
 import surekhaImg from "@/assets/surekha.jpeg";
 import ashwinImg from "@/assets/ashwin.jpeg";
-import { WHATSAPP_URL, INSTAGRAM_URL, LOCATION_URL } from "@/lib/products";
+import { WHATSAPP_URL, WHATSAPP_NUMBER, INSTAGRAM_URL, LOCATION_URL } from "@/lib/products";
 
 export const Route = createFileRoute("/about")({
   head: () => ({
@@ -639,7 +639,7 @@ export function AboutPage() {
               className="footer-contact-item"
             >
               <span className="contact-icon">💬</span>
-              <span>+91 77603 97903</span>
+              <span>{WHATSAPP_NUMBER}</span>
             </a>
             <a
               href={INSTAGRAM_URL}

@@ -157,7 +157,8 @@ export const heroProduct: Product = {
   flavour: "",
 };
 
-export const WHATSAPP_URL = "https://wa.me/917760397903";
+export const WHATSAPP_NUMBER = "+91 77603 97902";
+export const WHATSAPP_URL = "https://wa.me/917760397902";
 export const INSTAGRAM_URL =
   "https://www.instagram.com/indira_pachhis_vasari?obrf=MWYzZ3pzZGlzd2Zycw==";
 export const LOCATION_URL = "https://maps.app.goo.gl/VVjJuRGBx2piGJav7?g_st=ic";
