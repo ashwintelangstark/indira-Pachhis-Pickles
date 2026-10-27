@@ -595,8 +595,19 @@ export function AboutPage() {
       <footer className="about-page-footer">
         <div className="footer-top">
           <div className="footer-brand">
-            <h3>Indira Pachhi's</h3>
-            <p className="footer-tagline">Pickles & Chutney Powders</p>
+            <div className="footer-brand-header">
+              <img
+                src={brandLogo}
+                alt="Indira Pachhi's"
+                className="footer-brand-logo"
+                width={44}
+                height={44}
+              />
+              <div>
+                <h3>Indira Pachhi's</h3>
+                <p className="footer-tagline">Pickles & Chutney Powders</p>
+              </div>
+            </div>
             <p className="footer-desc">
               Authentic handcrafted pickles and chutney powders inspired by a 100-year-old family
               recipe tradition.
