@@ -78,21 +78,34 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Lovable App" },
-      { name: "description", content: "Lovable Generated Project" },
-      { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Lovable App" },
-      { property: "og:description", content: "Lovable Generated Project" },
+      { title: "Indira Pachhi's | Pickles & Chutney Powders" },
+      {
+        name: "description",
+        content:
+          "Indira Pachhi's Pickles and Chutney Powders — authentic, handcrafted flavours inspired by a 100-year-old family recipe tradition.",
+      },
+      { name: "author", content: "Indira Pachhi's" },
+      { property: "og:title", content: "Indira Pachhi's | Pickles & Chutney Powders" },
+      {
+        property: "og:description",
+        content:
+          "Authentic, handcrafted pickles and chutney powders inspired by a 100-year-old family recipe tradition.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
-      { name: "twitter:site", content: "@Lovable" },
     ],
     links: [
+      { rel: "preconnect", href: "https://fonts.googleapis.com" },
+      { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
+      {
+        rel: "stylesheet",
+        href: "https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=Yatra+One&family=DM+Sans:wght@400;500;600;700&display=swap",
+      },
       {
         rel: "stylesheet",
         href: appCss,
       },
-      { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
+      { rel: "icon", href: "/favicon.png", type: "image/png" },
     ],
   }),
   shellComponent: RootShell,
