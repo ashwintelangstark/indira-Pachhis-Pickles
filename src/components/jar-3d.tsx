@@ -1,5 +1,8 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import * as THREE from "three";
 import type { Product } from "@/lib/products";
+import bottleStickerUrl from "@/assets/bottle_sticker.jpg";
+import { createPickleJar } from "./pickle-jar-model";
 
 type Jar3DProps = {
   product: Product;
@@ -10,183 +13,273 @@ type Jar3DProps = {
   ariaLabel?: string;
 };
 
+// Global texture cache to avoid repeated image decoding
+let cachedStickerTexture: THREE.Texture | null = null;
+function getStickerTexture(): Promise<THREE.Texture> {
+  if (cachedStickerTexture) return Promise.resolve(cachedStickerTexture);
+  return new Promise((resolve) => {
+    const loader = new THREE.TextureLoader();
+    loader.load(
+      bottleStickerUrl,
+      (tex) => {
+        tex.colorSpace = THREE.SRGBColorSpace;
+        tex.minFilter = THREE.LinearMipmapLinearFilter;
+        tex.magFilter = THREE.LinearFilter;
+        cachedStickerTexture = tex;
+        resolve(tex);
+      },
+      undefined,
+      () => {
+        // Fallback procedural canvas texture if image loading fails
+        const canvas = document.createElement("canvas");
+        canvas.width = 512;
+        canvas.height = 180;
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          ctx.fillStyle = "#ffffff";
+          ctx.fillRect(0, 0, 512, 180);
+          ctx.fillStyle = "#751b12";
+          ctx.font = "bold 28px sans-serif";
+          ctx.textAlign = "center";
+          ctx.fillText("INDIRA PACHHI'S", 256, 95);
+        }
+        const tex = new THREE.CanvasTexture(canvas);
+        tex.colorSpace = THREE.SRGBColorSpace;
+        cachedStickerTexture = tex;
+        resolve(tex);
+      },
+    );
+  });
+}
+
 /**
- * Interactive 3D glass pickle jar rendered with three.js.
- * The library is imported dynamically inside the effect so the module stays
- * SSR-safe; all rendering happens client-side in a canvas.
+ * Interactive 3D glass pickle jar rendered with Three.js.
+ * Features:
+ * - Refractive physical flint glass with authentic thickness
+ * - Indira Pachhi's official bottle_sticker.jpg branding
+ * - Suspended spices / seeds matching flavour
+ * - Smooth pointer drag-to-rotate + idle floating
+ * - Strict WebGL lifecycle & context loss management to eliminate canvas crashes
  */
-export function Jar3D({ product, speed = 0.006, phase = 0, className, id, ariaLabel }: Jar3DProps) {
+export function Jar3D({ product, speed = 0.005, phase = 0, className, id, ariaLabel }: Jar3DProps) {
   const hostRef = useRef<HTMLDivElement>(null);
+  const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
     const host = hostRef.current;
     if (!host) return;
+
     let disposed = false;
-    let raf = 0;
-    let ro: ResizeObserver | undefined;
+    let rafId = 0;
+    let resizeObserver: ResizeObserver | null = null;
+    let renderer: THREE.WebGLRenderer | null = null;
 
     (async () => {
-      const THREE = await import("three");
-      if (disposed) return;
+      try {
+        const texture = await getStickerTexture();
+        if (disposed || !host) return;
 
-      const scene = new THREE.Scene();
-      scene.background = null;
-      const camera = new THREE.PerspectiveCamera(35, 1, 0.1, 100);
-      camera.position.set(0, 0, 6.4);
-      const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true, powerPreference: "low-power" });
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-      renderer.outputColorSpace = THREE.SRGBColorSpace;
+        const scene = new THREE.Scene();
+        scene.background = null;
 
-      const resize = () => {
-        const w = Math.max(1, host.clientWidth);
-        const h = Math.max(1, host.clientHeight);
-        camera.aspect = w / h;
-        camera.updateProjectionMatrix();
-        renderer.setSize(w, h);
-      };
-      resize();
-      host.innerHTML = "";
-      host.appendChild(renderer.domElement);
+        const camera = new THREE.PerspectiveCamera(35, 1, 0.1, 50);
+        camera.position.set(0, 0.1, 6.2);
 
-      scene.add(new THREE.HemisphereLight(0xfff0d4, 0x5b2416, 2.1));
-      const key = new THREE.DirectionalLight(0xffffff, 3.0);
-      key.position.set(3, 5, 5);
-      scene.add(key);
-      const rim = new THREE.DirectionalLight(0xffa44a, 1.5);
-      rim.position.set(-4, 1, -2);
-      scene.add(rim);
-
-      const group = new THREE.Group();
-      scene.add(group);
-
-      const glass = new THREE.MeshPhysicalMaterial({ color: 0xf6dfb2, roughness: 0.2, metalness: 0, transparent: true, opacity: 0.26, transmission: 0.28, thickness: 0.3 });
-      const jarMat = new THREE.MeshStandardMaterial({ color: product.color, roughness: 0.3, metalness: 0.02 });
-      const lidMat = new THREE.MeshStandardMaterial({ color: 0x751b12, roughness: 0.35, metalness: 0.18 });
-      const goldMat = new THREE.MeshStandardMaterial({ color: 0xd9a34d, roughness: 0.3, metalness: 0.55 });
-
-      const body = new THREE.Mesh(new THREE.CylinderGeometry(0.78, 0.7, 1.85, 48, 1, false), jarMat);
-      body.position.y = -0.12;
-      group.add(body);
-      const shoulder = new THREE.Mesh(new THREE.CylinderGeometry(0.53, 0.78, 0.35, 48), jarMat);
-      shoulder.position.y = 0.98;
-      group.add(shoulder);
-      const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.43, 0.43, 0.28, 48), glass);
-      neck.position.y = 1.22;
-      group.add(neck);
-      const rimMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.48, 0.48, 0.09, 48), goldMat);
-      rimMesh.position.y = 1.37;
-      group.add(rimMesh);
-      const lid = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 0.28, 48), lidMat);
-      lid.position.y = 1.53;
-      group.add(lid);
-      const lidTop = new THREE.Mesh(new THREE.CylinderGeometry(0.48, 0.48, 0.035, 48), goldMat);
-      lidTop.position.y = 1.685;
-      group.add(lidTop);
-
-      // Label is a real curved 3D surface placed on the front of the jar.
-      const labelCanvas = document.createElement("canvas");
-      labelCanvas.width = 512;
-      labelCanvas.height = 320;
-      const ctx = labelCanvas.getContext("2d")!;
-      ctx.fillStyle = "#f2e4c9";
-      ctx.fillRect(0, 0, 512, 320);
-      ctx.strokeStyle = "#a77b3d";
-      ctx.lineWidth = 8;
-      ctx.strokeRect(12, 12, 488, 296);
-      ctx.fillStyle = "#7b2018";
-      ctx.textAlign = "center";
-      ctx.font = "bold 35px Georgia";
-      ctx.fillText("INDIRA PACHHI'S", 256, 77);
-      ctx.font = "bold 31px Georgia";
-      ctx.fillText(product.type === "powder" ? "CHUTNEY POWDER" : "PICKLES", 256, 119);
-      ctx.fillStyle = product.color;
-      ctx.font = "bold 34px Georgia";
-      const words = product.name.split(" ");
-      const lines: string[] = [];
-      let line = "";
-      for (const w of words) {
-        if ((line + " " + w).trim().length > 19) {
-          lines.push(line);
-          line = w;
-        } else line = (line + " " + w).trim();
-      }
-      if (line) lines.push(line);
-      lines.slice(0, 2).forEach((l, i) => ctx.fillText(l, 256, 177 + i * 40));
-      ctx.fillStyle = "#8e2b1e";
-      ctx.fillRect(40, 256, 432, 34);
-      ctx.fillStyle = "#fff2d8";
-      ctx.font = "bold 18px Arial";
-      ctx.fillText("100 YEAR RECIPE • NO ADDED PRESERVATIVES", 256, 279);
-      const tex = new THREE.CanvasTexture(labelCanvas);
-      tex.colorSpace = THREE.SRGBColorSpace;
-      const labelMat = new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide });
-      const label = new THREE.Mesh(new THREE.CylinderGeometry(0.787, 0.787, 0.92, 64, 1, true, Math.PI * 0.25, Math.PI * 1.5), labelMat);
-      label.position.y = -0.1;
-      label.rotation.y = Math.PI;
-      group.add(label);
-
-      // Tiny textured food pieces visible through the translucent glass.
-      const seedMat = new THREE.MeshStandardMaterial({ color: product.fill, roughness: 0.7 });
-      for (let i = 0; i < 22; i++) {
-        const a = i * 2.399;
-        const r = 0.3 + (i % 5) * 0.075;
-        const seed = new THREE.Mesh(new THREE.SphereGeometry(0.045 + (i % 3) * 0.014, 8, 6), seedMat);
-        seed.position.set(Math.cos(a) * r, -0.83 + (i % 8) * 0.19, Math.sin(a) * r);
-        group.add(seed);
-      }
-
-      const foot = new THREE.Mesh(new THREE.TorusGeometry(0.68, 0.045, 10, 48), glass);
-      foot.rotation.x = Math.PI / 2;
-      foot.position.y = -1.06;
-      group.add(foot);
-
-      group.rotation.y = -0.2;
-      group.rotation.x = 0.025;
-
-      ro = new ResizeObserver(resize);
-      ro.observe(host);
-
-      let frame = 0;
-      let drag = false;
-      let lastX = 0;
-      const el = renderer.domElement;
-      el.addEventListener("pointerdown", (e) => {
-        drag = true;
-        lastX = e.clientX;
-        el.setPointerCapture(e.pointerId);
-      });
-      el.addEventListener("pointermove", (e) => {
-        if (drag) {
-          group.rotation.y += (e.clientX - lastX) * 0.012;
-          lastX = e.clientX;
+        // Check WebGL availability
+        try {
+          renderer = new THREE.WebGLRenderer({
+            alpha: true,
+            antialias: true,
+            powerPreference: "high-performance",
+          });
+        } catch (e) {
+          console.warn("WebGL not supported, using fallback", e);
+          setLoadError(true);
+          return;
         }
-      });
-      el.addEventListener("pointerup", () => (drag = false));
-      el.addEventListener("pointercancel", () => (drag = false));
 
-      const animate = () => {
-        if (disposed) return;
-        frame++;
-        if (!drag) group.rotation.y += speed;
-        group.position.y = Math.sin(frame * 0.025 + phase) * 0.055;
-        renderer.render(scene, camera);
-        raf = requestAnimationFrame(animate);
-      };
-      animate();
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+        renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+        const canvas = renderer.domElement;
+        canvas.style.display = "block";
+        canvas.style.width = "100%";
+        canvas.style.height = "100%";
+        canvas.style.touchAction = "none";
+
+        const updateSize = () => {
+          if (!host || disposed || !renderer) return;
+          const w = host.clientWidth || 320;
+          const h = host.clientHeight || 420;
+          const aspect = w / h;
+          camera.aspect = aspect;
+          // Keep the entire bottle with its top lid comfortably framed without clipping
+          if (aspect < 0.85) {
+            camera.position.set(0, 0.06, 6.8 / Math.max(0.62, aspect));
+          } else if (aspect < 1.15) {
+            camera.position.set(0, 0.09, 6.6);
+          } else {
+            camera.position.set(0, 0.1, 6.3);
+          }
+          camera.updateProjectionMatrix();
+          renderer.setSize(w, h, false);
+        };
+
+        host.innerHTML = "";
+        host.appendChild(canvas);
+        updateSize();
+
+        // Studio lighting
+        const ambient = new THREE.HemisphereLight(0xfff5e6, 0x542318, 2.4);
+        scene.add(ambient);
+
+        const key = new THREE.DirectionalLight(0xffffff, 3.2);
+        key.position.set(3.5, 5, 4.5);
+        scene.add(key);
+
+        const rim = new THREE.DirectionalLight(0xffa855, 1.8);
+        rim.position.set(-4, 2, -2.5);
+        scene.add(rim);
+
+        const fill = new THREE.DirectionalLight(0xfff0d8, 1.2);
+        fill.position.set(0, -2, 3);
+        scene.add(fill);
+
+        // Jar Group using the rich artisan model with fillings & powder motion
+        const jar = createPickleJar(product, texture);
+        jar.scale.set(0.96, 0.96, 0.96);
+        jar.position.set(0, -0.06, 0);
+        scene.add(jar);
+
+        // Interaction
+        let isDragging = false;
+        let lastX = 0;
+        let userRotation = -0.18;
+        let velocity = 0;
+
+        const onPointerDown = (e: PointerEvent) => {
+          isDragging = true;
+          lastX = e.clientX;
+          velocity = 0;
+          canvas.setPointerCapture(e.pointerId);
+        };
+
+        const onPointerMove = (e: PointerEvent) => {
+          if (!isDragging) return;
+          const delta = e.clientX - lastX;
+          lastX = e.clientX;
+          velocity = delta * 0.01;
+          userRotation += velocity;
+        };
+
+        const onPointerUp = () => {
+          isDragging = false;
+        };
+
+        canvas.addEventListener("pointerdown", onPointerDown);
+        canvas.addEventListener("pointermove", onPointerMove);
+        canvas.addEventListener("pointerup", onPointerUp);
+        canvas.addEventListener("pointercancel", onPointerUp);
+
+        // Debounced resize observer
+        let resizeTimer = 0;
+        resizeObserver = new ResizeObserver(() => {
+          window.cancelAnimationFrame(resizeTimer);
+          resizeTimer = window.requestAnimationFrame(updateSize);
+        });
+        resizeObserver.observe(host);
+
+        // Handle WebGL context events
+        const onContextLost = (event: Event) => {
+          event.preventDefault();
+          if (rafId) cancelAnimationFrame(rafId);
+        };
+        const onContextRestored = () => {
+          updateSize();
+          animate();
+        };
+        canvas.addEventListener("webglcontextlost", onContextLost);
+        canvas.addEventListener("webglcontextrestored", onContextRestored);
+
+        let frame = 0;
+        const animate = () => {
+          if (disposed || !renderer) return;
+          frame++;
+          const time = frame * 0.02;
+
+          if (!isDragging) {
+            velocity *= 0.94;
+            userRotation += velocity + speed;
+          }
+
+          jar.rotation.y = userRotation;
+          jar.position.y = -0.06 + Math.sin(frame * 0.025 + phase) * 0.032;
+
+          // Animate floating vegetable chunks & particle powder motion
+          if (typeof jar.userData?.update === "function") {
+            jar.userData.update(time);
+          }
+
+          renderer.render(scene, camera);
+          rafId = requestAnimationFrame(animate);
+        };
+
+        animate();
+      } catch (err) {
+        console.error("Jar3D error:", err);
+        setLoadError(true);
+      }
     })();
 
     return () => {
       disposed = true;
-      cancelAnimationFrame(raf);
-      ro?.disconnect();
-      const canvas = host.querySelector("canvas");
-      if (canvas) {
-        const renderer = canvas as HTMLCanvasElement & { __jarRenderer?: { dispose: () => void } };
-        renderer.__jarRenderer?.dispose();
+      if (rafId) cancelAnimationFrame(rafId);
+      resizeObserver?.disconnect();
+      if (renderer) {
+        try {
+          renderer.dispose();
+          renderer.forceContextLoss();
+          const gl = renderer.getContext();
+          const ext = gl?.getExtension("WEBGL_lose_context");
+          ext?.loseContext();
+        } catch {
+          // ignore
+        }
       }
-      host.innerHTML = "";
+      if (host) host.innerHTML = "";
     };
-  }, [product.color, product.fill, product.name, product.type, speed, phase]);
+  }, [product, speed, phase]);
 
-  return <div ref={hostRef} id={id} className={className} role="img" aria-label={ariaLabel ?? `Interactive 3D jar of ${product.name}. Drag to rotate.`} />;
+  if (loadError) {
+    return (
+      <div
+        id={id}
+        className={className}
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          background: "radial-gradient(ellipse, #edd7b4 0%, #f7eddb 70%)",
+          borderRadius: 24,
+          padding: 24,
+          color: "var(--wine)",
+          textAlign: "center",
+        }}
+      >
+        <div style={{ fontSize: 48, marginBottom: 8 }}>🫙</div>
+        <strong style={{ fontFamily: "Cormorant Garamond", fontSize: 22 }}>{product.name}</strong>
+        <small style={{ opacity: 0.8, marginTop: 4 }}>Authentic Indira Pachhi's Heritage</small>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      ref={hostRef}
+      id={id}
+      className={className}
+      aria-label={ariaLabel ?? `Interactive 3D jar of ${product.name}. Drag to rotate.`}
+    />
+  );
 }
